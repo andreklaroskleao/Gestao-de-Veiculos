@@ -1,0 +1,4 @@
+.install-auth-button { width: 100%; margin-top: 10px; }
+.install-toolbar-button { white-space: nowrap; }
+.install-toolbar-button svg { width: 16px; height: 16px; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
+@media (max-width: 700px) { .topbar-actions .install-toolbar-button { width: 37px; min-width: 37px; padding: 0; } .install-toolbar-button span { display: none; } }

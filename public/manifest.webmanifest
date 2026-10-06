@@ -1,0 +1,17 @@
+{
+  "id": "/",
+  "name": "Rota - Gest\u00e3o Veicular",
+  "short_name": "Rota",
+  "description": "Gest\u00e3o de ve\u00edculos, custos e manuten\u00e7\u00f5es.",
+  "lang": "pt-BR",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "orientation": "any",
+  "theme_color": "#142720",
+  "background_color": "#f5f7f5",
+  "icons": [
+    { "src": "/icons/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+    { "src": "/icons/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any maskable" }
+  ]
+}

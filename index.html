@@ -1,0 +1,100 @@
+<!doctype html>
+<html lang="pt-BR">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="theme-color" content="#142720" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-title" content="Rota" />
+    <link rel="manifest" href="/manifest.webmanifest" />
+    <link rel="icon" type="image/png" sizes="192x192" href="/icons/icon-192.png" />
+    <link rel="apple-touch-icon" href="/icons/apple-touch-icon.png" />
+    <meta name="description" content="Gestão clara dos veículos, custos e manutenções." />
+    <link rel="stylesheet" href="/css/style.css" />
+    <link rel="stylesheet" href="/css/dashboard.css" />
+    <link rel="stylesheet" href="/css/forms.css" />
+    <link rel="stylesheet" href="/css/responsive.css" />
+    <link rel="stylesheet" href="/css/interactions.css" />
+    <link rel="stylesheet" href="/css/pwa.css" />
+    <title>Rota — Gestão veicular</title>
+  </head>
+  <body>
+    <section id="auth-gate" class="auth-gate">
+      <div class="auth-card">
+        <div class="brand-mark" aria-hidden="true"><span>R</span></div>
+        <p class="eyebrow">GESTÃO VEICULAR</p>
+        <h1>Seu veículo.<br /><em>Seus números.</em></h1>
+        <p class="auth-copy">Abastecimentos, manutenção e despesas organizados em um só lugar.</p>
+        <button id="google-sign-in" class="button button-primary button-wide">
+          <svg aria-hidden="true" viewBox="0 0 24 24"><path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92a5.06 5.06 0 0 1-2.2 3.32v2.77h3.57c2.08-1.92 3.27-4.75 3.27-8.1Z"/><path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.65l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.15v2.86A11 11 0 0 0 12 23Z"/><path fill="#FBBC05" d="M5.84 14.11a6.6 6.6 0 0 1 0-4.22V7.03H2.15a11 11 0 0 0 0 9.94l3.69-2.86Z"/><path fill="#EA4335" d="M12 5.36c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.07 14.97 1 12 1a11 11 0 0 0-9.85 6.03l3.69 2.86C6.71 7.29 9.14 5.36 12 5.36Z"/></svg>
+          Entrar com Google
+        </button>
+        <button type="button" class="button button-quiet install-auth-button" data-install-app hidden>Instalar aplicativo</button>
+        <p id="auth-message" class="auth-message" role="status">Entre com sua conta Google para continuar.</p>
+        <p class="auth-footnote">Seus dados ficam vinculados à sua conta e protegidos pelas regras do Firestore.</p>
+      </div>
+      <div class="auth-side" aria-hidden="true">
+        <div class="road-orbit orbit-one"></div><div class="road-orbit orbit-two"></div>
+        <div class="auth-note"><span class="note-dot"></span> Controle simples, decisão melhor.</div>
+      </div>
+    </section>
+
+    <div id="application" class="app-shell" hidden>
+      <aside class="sidebar" id="sidebar">
+        <a class="brand" href="#dashboard" aria-label="Rota início">
+          <span class="brand-mark small"><span>R</span></span><span class="brand-name">rota<span>.</span></span>
+        </a>
+        <div class="vehicle-picker-wrap">
+          <label for="vehicle-picker">VEÍCULO ATIVO</label>
+          <select id="vehicle-picker" aria-label="Selecionar veículo"><option value="">Nenhum veículo</option></select>
+        </div>
+        <nav class="primary-nav" aria-label="Navegação principal">
+          <p class="nav-label">VISÃO GERAL</p>
+          <button class="nav-item active" data-view="dashboard"><span class="nav-icon">⌂</span>Dashboard</button>
+          <button class="nav-item" data-view="vehicles"><span class="nav-icon">▰</span>Veículos</button>
+          <button class="nav-item" data-view="providers"><span class="nav-icon">&#9874;</span>Prestadores de servi&#xE7;o</button>
+          <p class="nav-label">REGISTROS</p>
+          <button class="nav-item" data-view="refuels"><span class="nav-icon">◉</span>Abastecimentos</button>
+          <button class="nav-item" data-view="maintenances"><span class="nav-icon">⚙</span>Manutenções</button>
+          <button class="nav-item" data-view="tires"><span class="nav-icon">◌</span>Pneus</button>
+          <button class="nav-item" data-view="expenses"><span class="nav-icon">↗</span>Despesas</button>
+          <button class="nav-item" data-view="trips"><span class="nav-icon">⇢</span>Viagens</button>
+          <p class="nav-label">ANÁLISE</p>
+          <button class="nav-item" data-view="finance"><span class="nav-icon">▤</span>Financeiro</button>
+          <button class="nav-item" data-view="reports"><span class="nav-icon">▧</span>Relatórios</button>
+          <button class="nav-item" data-view="sharing"><span class="nav-icon">♧</span>Compartilhamentos</button>
+          <p class="nav-label">CONTA</p>
+          <button class="nav-item" data-view="payments"><span class="nav-icon">&#128179;</span>Pagamentos</button>
+        </nav>
+        <div class="sidebar-bottom">
+          <div class="profile-row"><img id="user-avatar" alt="" /><div class="profile-copy"><strong id="user-name">Usuário</strong><span id="user-email">conta</span></div></div>
+          <button id="sign-out" class="sign-out">Sair da conta <span aria-hidden="true">↗</span></button>
+        </div>
+      </aside>
+      <main class="main-area">
+        <header class="topbar">
+          <button id="mobile-menu" class="icon-button mobile-menu" aria-label="Abrir menu">☰</button>
+          <div><p class="topbar-kicker" id="page-kicker">SEU RESUMO</p><h1 id="page-title">Dashboard</h1></div>
+          <div class="topbar-actions">
+            <button type="button" class="button button-quiet install-toolbar-button" data-install-app hidden aria-label="Instalar aplicativo" title="Instalar aplicativo"><svg aria-hidden="true" viewBox="0 0 24 24"><path d="M12 3v12m0 0 4-4m-4 4-4-4M5 16v4h14v-4" /></svg><span>Instalar</span></button>
+            <span class="sync-status"><i></i><span>Dados sincronizados</span></span>
+            <button id="new-record" class="button button-primary"><span>＋</span> Novo registro</button>
+          </div>
+        </header>
+        <div id="app-content" class="content-area"></div>
+        <footer class="app-footer"><span>ROTA · GESTÃO VEICULAR</span><span>Seus registros, no seu ritmo.</span></footer>
+      </main>
+      <nav class="mobile-nav" aria-label="Navegação rápida">
+        <button data-view="dashboard" class="active"><span>⌂</span>Início</button>
+        <button data-view="refuels"><span>◉</span>Abastecer</button>
+        <button data-view="vehicles"><span>▰</span>Veículos</button>
+        <button data-view="finance"><span>▤</span>Gastos</button>
+        <button data-view="payments"><span>&#128179;</span>Pagamentos</button>
+      </nav>
+    </div>
+
+    <dialog id="entry-dialog" class="entry-dialog"><div id="dialog-content"></div></dialog>
+    <div id="toast-region" class="toast-region" aria-live="polite" aria-atomic="true"></div>
+    <script type="module" src="/js/app.js"></script>
+  </body>
+</html>

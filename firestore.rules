@@ -1,0 +1,327 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    function signedIn() {
+      return request.auth != null;
+    }
+
+    function vehiclePath(vehicleId) {
+      return /databases/$(database)/documents/vehicles/$(vehicleId);
+    }
+
+    function sharePath(vehicleId, userId) {
+      return /databases/$(database)/documents/vehicles/$(vehicleId)/shares/$(userId);
+    }
+
+    function invitePath(vehicleId, email) {
+      return /databases/$(database)/documents/vehicles/$(vehicleId)/shareInvites/$(email);
+    }
+
+    function vehicleExists(vehicleId) {
+      return exists(vehiclePath(vehicleId));
+    }
+
+    function isOwner(vehicleId) {
+      return signedIn() && vehicleExists(vehicleId)
+        && get(vehiclePath(vehicleId)).data.ownerId == request.auth.uid;
+    }
+
+    function hasShare(vehicleId) {
+      return signedIn() && exists(sharePath(vehicleId, request.auth.uid))
+        && get(sharePath(vehicleId, request.auth.uid)).data.userId == request.auth.uid;
+    }
+
+    function canView(vehicleId) {
+      return isOwner(vehicleId) || hasShare(vehicleId);
+    }
+
+    function canEdit(vehicleId) {
+      return isOwner(vehicleId) || (hasShare(vehicleId)
+        && get(sharePath(vehicleId, request.auth.uid)).data.role == 'editor');
+    }
+
+    function validRecordData(collectionName) {
+      return request.resource.data.keys().hasOnly([
+          'createdBy', 'vehicleId', 'createdAt', 'updatedAt', 'date', 'startDate', 'endDate',
+          'city', 'odometer', 'fuel', 'liters', 'pricePerLiter', 'total', 'fullTank', 'station',
+          'notes', 'category', 'service', 'amount', 'workshop', 'paymentMethod', 'nextDate',
+          'nextOdometer', 'details', 'action', 'quantity', 'brand', 'model', 'tireSize',
+          'position', 'description', 'tripId', 'origin', 'destination', 'startOdometer',
+          'endOdometer', 'purpose', 'distance', 'paymentMethodId', 'installments', 'status'
+        ])
+        && (!('paymentMethod' in request.resource.data) || request.resource.data.paymentMethod is string)
+        && (!('paymentMethodId' in request.resource.data) || request.resource.data.paymentMethodId is string)
+        && (!('installments' in request.resource.data) || (collectionName in ['refuels', 'maintenances', 'tires', 'expenses'] && request.resource.data.installments is int && request.resource.data.installments >= 1 && request.resource.data.installments <= 48))
+        && (!('status' in request.resource.data) || collectionName == 'trips')
+        && (collectionName != 'refuels' || (
+          request.resource.data.date is string
+          && request.resource.data.odometer is number && request.resource.data.odometer >= 0
+          && request.resource.data.fuel in ['gasolina-comum', 'gasolina-aditivada', 'etanol', 'diesel', 'gnv', 'outro']
+          && request.resource.data.liters is number && request.resource.data.liters > 0
+          && request.resource.data.pricePerLiter is number && request.resource.data.pricePerLiter > 0
+          && request.resource.data.total is number && request.resource.data.total > 0
+          && request.resource.data.fullTank is bool
+        ))
+        && (collectionName != 'maintenances' || (
+          request.resource.data.date is string
+          && request.resource.data.category is string && request.resource.data.category.size() > 0
+          && request.resource.data['service'] is string && request.resource.data['service'].size() > 0
+          && request.resource.data.amount is number && request.resource.data.amount >= 0
+        ))
+        && (collectionName != 'tires' || (
+          request.resource.data.date is string
+          && request.resource.data.action is string && request.resource.data.action.size() > 0
+          && request.resource.data.quantity is number && request.resource.data.quantity > 0
+          && request.resource.data.amount is number && request.resource.data.amount >= 0
+        ))
+        && (collectionName != 'expenses' || (
+          request.resource.data.date is string
+          && request.resource.data.category is string && request.resource.data.category.size() > 0
+          && request.resource.data.description is string && request.resource.data.description.size() > 0
+          && request.resource.data.amount is number && request.resource.data.amount >= 0
+          && (!('tripId' in request.resource.data) || request.resource.data.tripId is string)
+        ))
+        && (collectionName != 'trips' || (
+          request.resource.data.startDate is string
+          && request.resource.data.origin is string && request.resource.data.origin.size() > 0
+          && request.resource.data.destination is string && request.resource.data.destination.size() > 0
+          && request.resource.data.startOdometer is number && request.resource.data.startOdometer >= 0
+          && (
+            (('status' in request.resource.data) && request.resource.data.status == 'open'
+              && !('endDate' in request.resource.data)
+              && !('endOdometer' in request.resource.data)
+              && !('distance' in request.resource.data))
+            ||
+            ((!('status' in request.resource.data) || request.resource.data.status == 'closed')
+              && request.resource.data.endDate is string
+              && request.resource.data.endOdometer is number
+              && request.resource.data.endOdometer >= request.resource.data.startOdometer
+              && request.resource.data.distance == request.resource.data.endOdometer - request.resource.data.startOdometer)
+          )
+        ))
+        && (collectionName != 'odometerHistory' || (
+          request.resource.data.date is string
+          && request.resource.data.odometer is number && request.resource.data.odometer >= 0
+        ));
+    }
+
+    function recordCreateIsValid(vehicleId, collectionName) {
+      return signedIn() && canEdit(vehicleId)
+        && request.resource.data.createdBy == request.auth.uid
+        && request.resource.data.vehicleId == vehicleId
+        && validRecordData(collectionName);
+    }
+
+    function recordUpdateIsValid(vehicleId, collectionName) {
+      return signedIn() && canEdit(vehicleId)
+        && request.resource.data.createdBy == resource.data.createdBy
+        && request.resource.data.vehicleId == vehicleId
+        && validRecordData(collectionName);
+    }
+
+    function canEditExistingRecord(vehicleId) {
+      return isOwner(vehicleId) || (canEdit(vehicleId)
+        && resource.data.createdBy == request.auth.uid);
+    }
+
+    function shareIsValid(userId) {
+      return request.resource.data.keys().hasOnly([
+          'userId', 'email', 'displayName', 'role', 'createdAt', 'createdBy'
+        ])
+        && request.resource.data.userId == userId
+        && request.resource.data.email is string
+        && request.resource.data.role in ['editor', 'viewer']
+        && request.resource.data.createdBy == request.auth.uid
+        && exists(/databases/$(database)/documents/users/$(userId))
+        && get(/databases/$(database)/documents/users/$(userId)).data.email == request.resource.data.email;
+    }
+
+    function claimIsValid(vehicleId, userId) {
+      return signedIn() && request.auth.uid == userId
+        && request.resource.data.keys().hasOnly([
+          'userId', 'email', 'displayName', 'role', 'createdAt', 'createdBy'
+        ])
+        && request.resource.data.userId == request.auth.uid
+        && request.resource.data.email == request.auth.token.email
+        && exists(invitePath(vehicleId, request.auth.token.email))
+        && request.resource.data.role == get(invitePath(vehicleId, request.auth.token.email)).data.role
+        && request.resource.data.createdBy == get(invitePath(vehicleId, request.auth.token.email)).data.createdBy
+        && exists(/databases/$(database)/documents/users/$(request.auth.uid))
+        && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.email == request.auth.token.email;
+    }
+
+    function paymentMethodIsValid() {
+      return request.resource.data.keys().hasOnly([
+          'name', 'institution', 'lastFour', 'usage', 'createdAt', 'updatedAt'
+        ])
+        && request.resource.data.name is string
+        && request.resource.data.name.size() > 0
+        && request.resource.data.name.size() <= 60
+        && request.resource.data.institution is string
+        && request.resource.data.institution.size() > 0
+        && request.resource.data.institution.size() <= 80
+        && request.resource.data.lastFour is string
+        && request.resource.data.lastFour.matches('^[0-9]{4}$')
+        && (!('usage' in request.resource.data) || request.resource.data.usage in ['credit', 'debit']);
+    }
+
+    function serviceProviderIsValid() {
+      return request.resource.data.keys().hasOnly([
+          'name', 'type', 'phone', 'address', 'number', 'complement', 'neighborhood',
+          'city', 'state', 'postalCode', 'notes', 'createdAt', 'updatedAt'
+        ])
+        && request.resource.data.name is string && request.resource.data.name.size() > 0 && request.resource.data.name.size() <= 100
+        && request.resource.data.type is string && request.resource.data.type.size() > 0 && request.resource.data.type.size() <= 50
+        && request.resource.data.phone is string && request.resource.data.phone.size() >= 10 && request.resource.data.phone.size() <= 20
+        && request.resource.data.address is string && request.resource.data.address.size() > 0 && request.resource.data.address.size() <= 120
+        && request.resource.data.number is string && request.resource.data.number.size() > 0 && request.resource.data.number.size() <= 20
+        && request.resource.data.complement is string
+        && request.resource.data.neighborhood is string && request.resource.data.neighborhood.size() > 0 && request.resource.data.neighborhood.size() <= 80
+        && request.resource.data.city is string && request.resource.data.city.size() > 0 && request.resource.data.city.size() <= 80
+        && request.resource.data.state is string && request.resource.data.state.matches('^[A-Z]{2}$')
+        && request.resource.data.postalCode is string && request.resource.data.postalCode.matches('^[0-9]{8}$')
+        && request.resource.data.notes is string;
+    }
+
+    match /users/{userId} {
+      allow get, list: if signedIn() && (
+        request.auth.uid == userId || resource.data.email == request.auth.token.email
+      );
+      allow create: if signedIn() && request.auth.uid == userId
+        && request.resource.data.uid == request.auth.uid
+        && request.resource.data.email == request.auth.token.email
+        && request.resource.data.keys().hasOnly(['uid', 'name', 'email', 'photoURL', 'createdAt', 'updatedAt']);
+      allow update: if signedIn() && request.auth.uid == userId
+        && request.resource.data.uid == resource.data.uid
+        && request.resource.data.email == request.auth.token.email
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['name', 'email', 'photoURL', 'updatedAt']);
+      allow delete: if false;
+
+      match /paymentMethods/{paymentMethodId} {
+        allow get, list: if signedIn() && request.auth.uid == userId;
+        allow create: if signedIn() && request.auth.uid == userId
+          && paymentMethodIsValid()
+          && request.resource.data.usage in ['credit', 'debit']
+          && request.resource.data.createdAt is timestamp
+          && request.resource.data.updatedAt is timestamp;
+        allow update: if signedIn() && request.auth.uid == userId
+          && paymentMethodIsValid()
+          && request.resource.data.createdAt == resource.data.createdAt
+          && request.resource.data.updatedAt is timestamp;
+        allow delete: if signedIn() && request.auth.uid == userId;
+      }
+
+      match /serviceProviders/{providerId} {
+        allow get, list: if signedIn() && request.auth.uid == userId;
+        allow create: if signedIn() && request.auth.uid == userId
+          && serviceProviderIsValid()
+          && request.resource.data.createdAt is timestamp
+          && request.resource.data.updatedAt is timestamp;
+        allow update: if signedIn() && request.auth.uid == userId
+          && serviceProviderIsValid()
+          && request.resource.data.createdAt == resource.data.createdAt
+          && request.resource.data.updatedAt is timestamp;
+        allow delete: if signedIn() && request.auth.uid == userId;
+      }
+    }
+
+    match /vehicles/{vehicleId} {
+      allow get: if signedIn() && (resource.data.ownerId == request.auth.uid || hasShare(vehicleId));
+      allow list: if signedIn() && (resource.data.ownerId == request.auth.uid || hasShare(vehicleId));
+      allow create: if signedIn()
+        && request.resource.data.ownerId == request.auth.uid
+        && request.resource.data.name is string
+        && request.resource.data.name.size() > 0
+        && request.resource.data.type is string
+        && request.resource.data.fuel is string
+        && request.resource.data.currentOdometer is number
+        && request.resource.data.currentOdometer >= 0
+        && request.resource.data.keys().hasOnly([
+          'ownerId', 'name', 'type', 'make', 'model', 'version', 'year', 'engine', 'fuel',
+          'tankCapacity', 'currentOdometer', 'city', 'tireSize', 'tirePressure', 'notes',
+          'createdAt', 'updatedAt'
+        ]);
+      allow update: if isOwner(vehicleId)
+        && request.resource.data.ownerId == resource.data.ownerId
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+          'name', 'type', 'make', 'model', 'version', 'year', 'engine', 'fuel',
+          'tankCapacity', 'currentOdometer', 'city', 'tireSize', 'tirePressure',
+          'notes', 'archivedAt', 'updatedAt'
+        ]);
+      allow delete: if isOwner(vehicleId);
+
+      match /shares/{userId} {
+        allow get: if signedIn() && (isOwner(vehicleId) || request.auth.uid == userId);
+        allow list: if signedIn() && (isOwner(vehicleId) || resource.data.userId == request.auth.uid);
+        allow create: if (isOwner(vehicleId) && userId != request.auth.uid && shareIsValid(userId))
+          || claimIsValid(vehicleId, userId);
+        allow update: if (isOwner(vehicleId) && userId != request.auth.uid
+            && shareIsValid(userId)
+            && request.resource.data.createdAt == resource.data.createdAt
+            && request.resource.data.createdBy == resource.data.createdBy)
+          || (signedIn() && userId == request.auth.uid
+            && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['role'])
+            && exists(invitePath(vehicleId, request.auth.token.email))
+            && request.resource.data.role == get(invitePath(vehicleId, request.auth.token.email)).data.role);
+        allow delete: if (isOwner(vehicleId) && userId != request.auth.uid)
+          || (signedIn() && resource.data.email == request.auth.token.email
+            && request.auth.uid == userId && exists(sharePath(vehicleId, userId)));
+      }
+
+      match /shareInvites/{email} {
+        allow get: if signedIn() && (isOwner(vehicleId) || resource.data.email == request.auth.token.email);
+        allow list: if signedIn() && (isOwner(vehicleId) || resource.data.email == request.auth.token.email);
+        allow create: if isOwner(vehicleId)
+          && request.resource.data.keys().hasOnly(['email', 'role', 'createdAt', 'createdBy'])
+          && request.resource.data.email == email
+          && request.resource.data.role in ['editor', 'viewer']
+          && request.resource.data.createdBy == request.auth.uid;
+        allow update: if isOwner(vehicleId)
+          && request.resource.data.email == resource.data.email
+          && request.resource.data.createdBy == resource.data.createdBy
+          && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['role'])
+          && request.resource.data.role in ['editor', 'viewer'];
+        allow delete: if isOwner(vehicleId)
+          || (signedIn() && resource.data.email == request.auth.token.email
+            && exists(sharePath(vehicleId, request.auth.uid)));
+      }
+
+      match /{collectionName}/{recordId} {
+        allow read: if collectionName in ['refuels', 'maintenances', 'tires', 'expenses', 'trips', 'odometerHistory']
+          && canView(vehicleId);
+        allow create: if collectionName in ['refuels', 'maintenances', 'tires', 'expenses', 'trips', 'odometerHistory']
+          && recordCreateIsValid(vehicleId, collectionName);
+        allow update: if collectionName in ['refuels', 'maintenances', 'tires', 'expenses', 'trips', 'odometerHistory']
+          && canEditExistingRecord(vehicleId) && recordUpdateIsValid(vehicleId, collectionName);
+        allow delete: if collectionName in ['refuels', 'maintenances', 'tires', 'expenses', 'trips', 'odometerHistory']
+          && canEditExistingRecord(vehicleId);
+      }
+
+      match /trips/{tripId}/expenses/{expenseId} {
+        allow read: if canView(vehicleId);
+        allow create: if recordCreateIsValid(vehicleId, 'expenses')
+          && request.resource.data.tripId == tripId;
+        allow update: if canEditExistingRecord(vehicleId)
+          && recordUpdateIsValid(vehicleId, 'expenses')
+          && request.resource.data.tripId == tripId;
+        allow delete: if canEditExistingRecord(vehicleId);
+      }
+    }
+
+    // The client uses collectionGroup queries for these collections. Collection
+    // group queries need explicit recursive-wildcard rules in rules version 2.
+    match /{path=**}/shares/{shareId} {
+      allow list: if signedIn() && resource.data.userId == request.auth.uid;
+    }
+
+    match /{path=**}/shareInvites/{inviteId} {
+      allow list: if signedIn() && resource.data.email == request.auth.token.email;
+    }
+
+    match /{path=**}/expenses/{expenseId} {
+      allow list: if signedIn()
+        && resource.data.vehicleId is string
+        && canView(resource.data.vehicleId);
+    }
+  }
+}
