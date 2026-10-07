@@ -40,6 +40,10 @@ export function validateRecord(kind, data) {
   if (kind === "refuels") {
     return positive(data.odometer, "Quilometragem", true) || positive(data.liters, "Litros") || positive(data.pricePerLiter, "Preço por litro") || (Number(data.total) <= 0 ? "O valor total deve ser maior que zero." : "");
   }
+  const fuelExpense = kind === "expenses" && String(data.category || "").normalize("NFD").replace(/[\u0300-\u036f]/g, "").trim().toLowerCase() === "combustivel";
+  if (fuelExpense) {
+    return required(data.fuel, "Combust\u00edvel") || positive(data.liters, "Litros") || positive(data.pricePerLiter, "Pre\u00e7o por litro") || positive(data.amount, "Valor");
+  }
   if (kind === "maintenances" || kind === "tires" || kind === "expenses") {
     return required(data.service || data.description || data.category || data.action, "Descrição") || positive(data.amount, "Valor", true) || (data.odometer !== "" && data.odometer != null ? positive(data.odometer, "Quilometragem", true) : "");
   }
