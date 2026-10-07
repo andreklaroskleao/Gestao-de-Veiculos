@@ -1,5 +1,12 @@
 import { categoryTotals, filterPeriod, fuelSummary, costPerKm } from "./calculations.js";
-import { numeric } from "./utils.js";
+import { decimal, money, numeric } from "./utils.js";
+
+function expenseDescription(item) {
+  const description = item.description || item.notes || "Despesa";
+  return numeric(item.liters) > 0 && numeric(item.pricePerLiter) > 0
+    ? `${description} \u00b7 ${decimal(item.liters, 2)} L \u00d7 ${money(item.pricePerLiter)}/L`
+    : description;
+}
 
 export function financialEvents(data) {
   const tripsById = new Map((data.trips || []).map((trip) => [trip.id, trip]));
@@ -9,7 +16,7 @@ export function financialEvents(data) {
     ...(data.tires || []).map((item) => ({ id: item.id, path: item.path, kind: "tires", date: item.date, category: "Pneus", detail: `${item.action || "Serviço"}${item.brand ? ` · ${item.brand}` : ""}`, amount: numeric(item.amount), paymentMethod: item.paymentMethod || "", installments: numeric(item.installments || 1), odometer: item.odometer })),
     ...(data.expenses || []).map((item) => {
       const trip = item.tripId ? tripsById.get(item.tripId) : null;
-      return { id: item.id, path: item.path, kind: "expenses", date: item.date, category: item.category || "Outros", detail: item.description || item.notes || "Despesa", amount: numeric(item.amount), paymentMethod: item.paymentMethod || "", installments: numeric(item.installments || 1), odometer: item.odometer, tripId: item.tripId, trip: trip ? { origin: trip.origin, destination: trip.destination, startDate: trip.startDate, endDate: trip.endDate } : null };
+      return { id: item.id, path: item.path, kind: "expenses", date: item.date, category: item.category || "Outros", detail: expenseDescription(item), amount: numeric(item.amount), paymentMethod: item.paymentMethod || "", installments: numeric(item.installments || 1), odometer: item.odometer, tripId: item.tripId, trip: trip ? { origin: trip.origin, destination: trip.destination, startDate: trip.startDate, endDate: trip.endDate } : null };
     }),
   ].sort((a, b) => (b.date || "").localeCompare(a.date || ""));
 }
