@@ -88,6 +88,9 @@ const definitions = {
     { id: "date", label: "Data", type: "date", required: true, value: todayISO() },
     { id: "city", label: "Cidade" },
     { id: "category", label: "Categoria", type: "select", required: true, options: expenseOptions, allowCustom: true },
+    { id: "fuel", label: "Combust\u00edvel", type: "select", required: true, options: fuelOptions, showWhen: "fuel-expense" },
+    { id: "liters", label: "Litros", type: "number", min: 0.01, step: "0.001", required: true, showWhen: "fuel-expense" },
+    { id: "pricePerLiter", label: "Pre\u00e7o por litro (R$)", type: "number", min: 0.01, step: "0.001", required: true, showWhen: "fuel-expense" },
     { id: "description", label: "Descrição", required: true },
     { id: "amount", label: "Valor (R$)", type: "number", min: 0, step: "0.01", required: true },
     { id: "paymentMethod", label: "Forma de pagamento", type: "payment-method" },
@@ -150,10 +153,20 @@ function valueFor(field, record = {}) {
   return field.value ?? "";
 }
 
+function isFuelExpenseCategory(category) {
+  return String(category || "").normalize("NFD").replace(/[\u0300-\u036f]/g, "").trim().toLowerCase() === "combustivel";
+}
+
+function isFieldVisible(field, record = {}) {
+  return field.showWhen !== "fuel-expense" || isFuelExpenseCategory(record.category);
+}
+
 function fieldMarkup(field, record, trips, paymentMethods) {
   const value = valueFor(field, record);
-  const required = field.required ? "required" : "";
+  const visible = isFieldVisible(field, record);
+  const required = field.required && visible ? "required" : "";
   const full = field.full ? " full" : "";
+  const conditional = field.showWhen ? ` data-show-when="${escapeHtml(field.showWhen)}"${visible ? "" : " hidden"}` : "";
   if (field.type === "payment-method") {
     const selected = paymentChoiceFor(record, paymentMethods);
     const options = [["", "N\u00e3o informado"], ...commonPaymentMethods, ...paymentMethods.map((item) => [`card:${item.id}`, paymentCardLabel(item)])];
@@ -173,12 +186,12 @@ function fieldMarkup(field, record, trips, paymentMethods) {
       : [["", "Selecione"], ...field.options];
     if (selectedValue === "__custom") options.push(["__custom", "Outra op\u00e7\u00e3o"]);
     const custom = field.allowCustom ? ` data-custom="true"` : "";
-    return `<div class="form-field${full}"><label for="field-${field.id}">${escapeHtml(field.label)}${field.required ? " *" : ""}</label><select id="field-${field.id}" name="${field.id}" ${required}${custom}>${options.map(([key, label]) => `<option value="${escapeHtml(key)}" ${key === selectedValue ? "selected" : ""}>${escapeHtml(label)}</option>`).join("")}</select>${field.allowCustom ? `<input class="custom-select-input" data-for="${field.id}" maxlength="${field.maxLength || 100}" placeholder="Ou informe outra op\u00e7\u00e3o" value="${selectedValue === "__custom" ? escapeHtml(value) : ""}" />` : ""}</div>`;
+    return `<div class="form-field${full}"${conditional}><label for="field-${field.id}">${escapeHtml(field.label)}${field.required && visible ? " *" : ""}</label><select id="field-${field.id}" name="${field.id}" ${required}${custom}>${options.map(([key, label]) => `<option value="${escapeHtml(key)}" ${key === selectedValue ? "selected" : ""}>${escapeHtml(label)}</option>`).join("")}</select>${field.allowCustom ? `<input class="custom-select-input" data-for="${field.id}" maxlength="${field.maxLength || 100}" placeholder="Ou informe outra op\u00e7\u00e3o" value="${selectedValue === "__custom" ? escapeHtml(value) : ""}" />` : ""}</div>`;
   }
   const type = field.type || "text";
   const attrs = [required, field.min != null ? `min="${field.min}"` : "", field.max != null ? `max="${field.max}"` : "", field.step ? `step="${field.step}"` : "", field.placeholder ? `placeholder="${escapeHtml(field.placeholder)}"` : "", field.maxLength ? `maxlength="${field.maxLength}"` : "", field.readonly ? "readonly" : ""].filter(Boolean).join(" ");
-  if (type === "textarea") return `<div class="form-field${full}"><label for="field-${field.id}">${escapeHtml(field.label)}${field.required ? " *" : ""}</label><textarea id="field-${field.id}" name="${field.id}" ${required} placeholder="${escapeHtml(field.placeholder || "")}">${escapeHtml(value)}</textarea></div>`;
-  return `<div class="form-field${full}"><label for="field-${field.id}">${escapeHtml(field.label)}${field.required ? " *" : ""}</label><input id="field-${field.id}" name="${field.id}" type="${type}" value="${escapeHtml(value)}" ${attrs} />${field.help ? `<small class="form-help">${escapeHtml(field.help)}</small>` : ""}</div>`;
+  if (type === "textarea") return `<div class="form-field${full}"${conditional}><label for="field-${field.id}">${escapeHtml(field.label)}${field.required && visible ? " *" : ""}</label><textarea id="field-${field.id}" name="${field.id}" ${required} placeholder="${escapeHtml(field.placeholder || "")}">${escapeHtml(value)}</textarea></div>`;
+  return `<div class="form-field${full}"${conditional}><label for="field-${field.id}">${escapeHtml(field.label)}${field.required && visible ? " *" : ""}</label><input id="field-${field.id}" name="${field.id}" type="${type}" value="${escapeHtml(value)}" ${attrs} />${field.help ? `<small class="form-help">${escapeHtml(field.help)}</small>` : ""}</div>`;
 }
 
 export function openEntryForm(kind, { dialog, vehicle, trips = [], paymentMethods = [], record = null, initialValues = null, onSubmit }) {
@@ -195,14 +208,32 @@ export function openEntryForm(kind, { dialog, vehicle, trips = [], paymentMethod
   const close = () => dialog.close();
   dialog.querySelector(".dialog-close").addEventListener("click", close);
   dialog.querySelector("[data-cancel]").addEventListener("click", close);
-  const total = form.elements.namedItem("total");
+  const total = form.elements.namedItem(kind === "refuels" ? "total" : "amount");
   const liters = form.elements.namedItem("liters");
   const price = form.elements.namedItem("pricePerLiter");
+  const category = form.elements.namedItem("category");
+  const customCategory = form.querySelector('[data-for="category"]');
   const syncTotal = () => {
-    if (total && liters?.value && price?.value) total.value = (Number(liters.value) * Number(price.value)).toFixed(2);
+    const categoryValue = category?.value === "__custom" ? customCategory?.value : category?.value;
+    const fuelExpense = kind === "expenses" && isFuelExpenseCategory(categoryValue);
+    if (total) total.readOnly = fuelExpense;
+    const totalLabel = total?.closest(".form-field")?.querySelector("label");
+    if (totalLabel && kind === "expenses") totalLabel.textContent = fuelExpense ? "Valor total (R$) *" : "Valor (R$) *";
+    if (total && (kind === "refuels" || fuelExpense) && liters?.value && price?.value) total.value = (Number(liters.value) * Number(price.value)).toFixed(2);
+    form.querySelectorAll('[data-show-when="fuel-expense"]').forEach((wrapper) => {
+      const field = definitions.expenses.fields.find((item) => item.showWhen === "fuel-expense" && wrapper.querySelector(`[name="${item.id}"]`));
+      wrapper.hidden = !fuelExpense;
+      if (!field) return;
+      const control = wrapper.querySelector(`[name="${field.id}"]`);
+      if (control) control.required = Boolean(field.required && fuelExpense);
+      const label = wrapper.querySelector("label");
+      if (label) label.textContent = `${field.label}${field.required && fuelExpense ? " *" : ""}`;
+    });
   };
   liters?.addEventListener("input", syncTotal);
   price?.addEventListener("input", syncTotal);
+  category?.addEventListener("change", syncTotal);
+  syncTotal();
   const startKm = form.elements.namedItem("startOdometer");
   const endKm = form.elements.namedItem("endOdometer");
   form.addEventListener("input", (event) => {
@@ -218,6 +249,7 @@ export function openEntryForm(kind, { dialog, vehicle, trips = [], paymentMethod
       if (!custom) select.add(new Option("Outra opção", "__custom"));
       select.value = "__custom";
     }
+    if (input.dataset.for === "category") syncTotal();
   }));
   form.addEventListener("submit", async (event) => {
     event.preventDefault();
@@ -227,8 +259,15 @@ export function openEntryForm(kind, { dialog, vehicle, trips = [], paymentMethod
       const select = form.elements.namedItem(field.id);
       if (field.allowCustom && select?.value === "__custom") data[field.id] = form.querySelector(`[data-for="${field.id}"]`)?.value.trim() || "Outros";
     }
-    if (data.total == null && data.liters && data.pricePerLiter) data.total = (Number(data.liters) * Number(data.pricePerLiter)).toFixed(2);
     if (kind === "refuels" && !data.total && data.liters && data.pricePerLiter) data.total = (Number(data.liters) * Number(data.pricePerLiter)).toFixed(2);
+    if (kind === "expenses") {
+      if (isFuelExpenseCategory(data.category) && data.liters && data.pricePerLiter) data.amount = (Number(data.liters) * Number(data.pricePerLiter)).toFixed(2);
+      else if (!isFuelExpenseCategory(data.category)) {
+        delete data.fuel;
+        delete data.liters;
+        delete data.pricePerLiter;
+      }
+    }
     if (kind === "trips") data.status = tripIsClosed ? "closed" : "open";
     const validation = kind === "vehicles" ? validateVehicle(data) : kind === "paymentMethods" ? validatePaymentMethod(data, Boolean(record)) : kind === "serviceProviders" ? validateServiceProvider(data) : validateRecord(kind, data);
     if (validation) { form.querySelector("#form-error").textContent = validation; return; }
